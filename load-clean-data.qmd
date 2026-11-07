@@ -1,0 +1,80 @@
+---
+title: "load-clean-data.qmd"
+author: Avi Jonas
+format: gfm
+---
+
+```{r}
+library(tidyverse)
+library(fs)
+
+# 1. One row per YEAR for now (not per abstract yet)
+yearly <- tibble(file_path = dir_ls("data/abstracts", recurse = TRUE, glob = "*.txt")) %>%
+  mutate(
+    year = as.integer(path_file(path_dir(file_path))),   # folder name = year
+    meeting_title = path_file(file_path) %>% str_remove("\\.pdf\\.txt$"),
+    text = map_chr(file_path, read_file)
+  )
+
+nrow(yearly)        # should be 17
+yearly$year
+```
+
+```{r}
+yearly <- yearly %>%
+  mutate(location = str_match(meeting_title, "\\(([^)]+)\\)")[,2] %>%
+           str_remove("\\s*-\\s*\\d{4}$"))
+```
+
+
+# function for parsing abstract
+```{r}
+split_and_parse <- function(text, yr) {
+  records <- str_split(paste0("\n", text), split_pattern)[[1]] %>%
+    str_trim() %>% discard(~ nchar(.x) == 0)
+  
+  tibble(raw = records) %>%
+    mutate(block_id = row_number(),
+           entry = str_split(raw, "(?=\\[\\d{1,5}\\])")) %>%
+    unnest(entry) %>%
+    group_by(block_id) %>%
+    mutate(author_block = first(entry)) %>%
+    filter(str_detect(entry, "^\\[\\d{1,5}\\]")) %>%
+    ungroup() %>%
+    mutate(
+      abstract_id   = str_extract(entry, "\\d{1,5}"),
+      body          = str_remove(entry, "^\\[\\d{1,5}\\]\\s*"),
+      is_see_ref    = str_detect(body, "^see\\s"),
+      is_discussant = str_detect(body, "^Discussant"),
+      body_clean    = str_remove_all(body, header_pattern),
+      year = yr
+    ) %>%
+    filter(!is_see_ref, !is_discussant, nchar(body) > 30) %>%
+    mutate(doc_id = paste0(yr, "_", row_number()))
+}
+```
+
+run for all years
+```{r}
+all_documents <- map2_dfr(yearly$text, yearly$year, split_and_parse)
+nrow(all_documents)   # expect roughly 17x your per-year count, likely 30,000-50,000+
+```
+
+## Tokenize, stopword-filter, and count on the combined corpus 
+```{r}
+all_tokens <- all_documents %>%
+  select(doc_id, year, body_clean) %>%
+  unnest_tokens(word, body_clean) %>%
+  anti_join(stop_words, by = "word") %>%
+  anti_join(custom_stops, by = "word") %>%
+  filter(!str_detect(word, "^\\d+$"))
+
+all_word_counts <- all_tokens %>% count(doc_id, word, sort = TRUE)
+```
+
+## Cast the full-corpus DTM
+```{r}
+dtm_full <- all_word_counts %>% cast_sparse(row = doc_id, column = word, value = n)
+dim(dtm_full)
+```
+

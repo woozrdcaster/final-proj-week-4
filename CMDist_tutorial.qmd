@@ -1,7 +1,7 @@
 ---
 title: "tuturial_stolz_et_al_package_docs_fp3"
-format: html
-editor: visual
+author: Avi Jonas
+format: gfm
 ---
 
 ```{r}
@@ -59,7 +59,7 @@ cmdist(
 ### Arguments
 
 |  |  |
-|----|----|
+|------------------------------------|------------------------------------|
 | `dtm` | Document-term matrix with words as columns. Works with DTMs produced by any popular text analysis package, or using the `dtm_builder()` function. |
 | `cw` | Vector with concept word(s) (e.g., `c("love", "money")`, `c("critical thinking")`) |
 | `cv` | Concept vector(s) as output from [`get_direction()`](http://127.0.0.1:42132/help/library/text2map/help/get_direction), [`get_centroid()`](http://127.0.0.1:42132/help/library/text2map/help/get_centroid), or [`get_regions()`](http://127.0.0.1:42132/help/library/text2map/help/get_regions) |
