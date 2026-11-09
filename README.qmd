@@ -4,4 +4,163 @@ author: "Avi Jonas"
 format: gfm
 ---
 
-## 
+```{r}
+library(tidyverse)
+library(tidytext)
+```
+
+
+## hypothesis
+phenomenological ideas see an uptick between 2004 and 2020
+Null hypothesis: No variation in phenomenology as a topic
+alternative explanation: the terms in my keyword dictionary could end up being 
+more associated with one or more theoretical or linguistic trends in 
+archaeological literature that have nothing to do with phenomenology
+
+## variables
+keyword library
+```{r}
+keywords <- c("path", "paths", "signify", "signifying", "relate", "related", "relation",
+              "relationship", "relational", "symbol", "symbolism", "symbolic", "experience",
+              "experiencing", "experiential", "temporal", "temporality", "temporalities",
+              "action", "world", "dwelling", "being", "subject", "subjectivity", "cognitive",
+              "cognition", "embodied", "embodiment", "medium", "centred", "context",
+              "densities", "specific", "subjective", "detotalized", "empowered",
+              "contradiction", "sanctified", "cosmological", "sense", "sensory", "sensorial",
+              "multisensorial", "landscape") %>%
+  str_to_lower() %>% unique()
+
+phrase_keywords <- "internal strategy"   # handled separately below
+```
+
+```{r}
+# 1. Check no standard stopwords remain
+intersect(unique(all_word_counts$word), stop_words$word)
+
+# 2. Check no custom stopwords remain
+intersect(unique(all_word_counts$word), custom_stops$word)
+```
+
+```{r}
+total_word_counts <- all_word_counts %>%
+  group_by(word) %>%
+  summarize(total = sum(n)) %>%
+  arrange(desc(total))
+```
+
+combining with word counts by year
+```{r}
+keyword_counts_by_doc <- all_word_counts %>%
+  filter(word %in% keywords)
+
+keyword_counts_by_doc |> arrange(desc(n)) |>  print(n=50)   # doc_id, word, n — one row per (document, keyword) pair found
+```
+1 2017_3463 landscape     9
+ 2 2016_2764 landscape     8
+ 3 2017_2077 landscape     8
+ 4 2017_2094 landscape     8
+ 5 2020_1417 temporal      8
+ 6 2015_33   cognitive     7
+ 7 2015_3998 landscape     7
+ 8 2016_1270 landscape     7
+ 9 2018_116  landscape     7
+10 2018_2320 landscape     7
+11 2019_2763 landscape     7
+12 2019_3051 sensory       7
+13 2020_1795 temporal      7
+14 2004_721  landscape     6
+15 2008_2216 world         6
+16 2009_1550 landscape     6
+17 2009_966  landscape     6
+18 2011_458  landscape     6
+19 2013_1918 world         6
+20 2015_30   landscape     6
+21 2015_3597 landscape     6
+22 2015_3746 landscape     6
+23 2017_1416 landscape     6
+24 2017_158  landscape     6
+25 2017_2161 landscape     6
+26 2017_2388 landscape     6
+27 2017_527  world         6
+28 2018_1250 landscape     6
+29 2018_1266 world         6
+30 2018_2461 landscape     6
+31 2018_2663 specific      6
+32 2018_2916 landscape     6
+33 2018_316  landscape     6
+34 2019_1237 world         6
+35 2019_2123 world         6
+36 2019_2356 landscape     6
+37 2019_3060 landscape     6
+38 2020_1737 landscape     6
+39 2020_2390 landscape     6
+40 2006_1682 landscape     5
+41 2006_373  landscape     5
+42 2008_2543 landscape     5
+43 2009_1049 landscape     5
+44 2009_1250 landscape     5
+45 2009_1304 symbolic      5
+46 2009_183  world         5
+47 2009_740  landscape     5
+48 2010_2429 landscape     5
+49 2010_2729 landscape     5
+50 2012_182  landscape     5
+
+There does seem to be a general trend of increase in words from my keyword list
+over time. However these are vastly dominated by the word "landscape" which
+could show up for many reasons in an archaeological context, mainly landscape
+archy. If people are talking about landscape archy, the question is how much 
+theoretical overlap there is with landscape archy and phenomenological
+frameworks of investigation.
+
+key variables:
+input: individual abstracts. Technically each document is an observation and 
+each word is a variable. I am also inputing my keyword list.
+output: word count, more specifically: keyword count.
+
+My hypothesis will be based on the CMDist index tracking
+
+
+## Predictions
+
+output:
+my output will be a CMDist matrix showing an engagement score for each docuent
+
+Benchmarks:
+two tests the developers used to validate their model
+1. Comparison with unrelated concepts: They repeat the Shakespeare analysis 
+using 200 basic concepts. Words semantically related to death show stronger 
+relationships with the number of deaths than most unrelated concepts (Figure 7).
+ - this makes for a good null hypothesis
+2. Robustness testing: They remove increasingly large numbers of rare words and 
+recalculate CMD scores. Results remain highly correlated, including a 
+correlation of 0.933 between scores calculated at 99% and 65% 
+sparsity (Figure 9).
+ - 0.9 would be my numerical benchmark
+ 
+If my hypothesis is right, the output will look like CMD scores increasing with
+time and the benchmark will show a high correlation between low(95%) and high 
+(65%) sparsity testing
+ 
+If my null hypothesis is right, the output will look like CMD scores with no 
+correlation to time and the benchmark will show low corelation between low(95%) 
+and high (65%) sparsity testing
+ 
+If my alternative explanation is right, the output could look like CMD scores 
+increasing with time but the benchmark will show low correlation between 
+low(95%) and high (65%) sparsity testing. Especially when removing words that 
+could connect to multiple theoretical concepts or methodological approaches 
+(eg. landscape)
+
+
+
+
+
+
+
+
+
+
+
+
+

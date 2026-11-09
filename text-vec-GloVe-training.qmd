@@ -1,0 +1,138 @@
+---
+title: "text-vec-GloVe-training"
+author: "Avi Jonas"
+format: gfm
+---
+
+## 
+
+```{r}
+install.packages('text2vec')
+```
+
+```{r}
+library('text2vec')
+```
+
+```{r}
+# =========================================================
+# Train word embeddings on SAA abstract corpus using text2vec
+# Output: wv matrix ready for CMDist()
+# =========================================================
+
+library(text2vec)
+library(tidyverse)  # dplyr/tidyr used to reshape all_tokens below
+# `all_tokens` and `dtm_full` should already exist in your environment
+# from load-clean-data.qmd
+
+# ---------------------------------------------------------
+# 1. Reuse the SAME tokens already used to build dtm_full
+# ---------------------------------------------------------
+# `all_tokens` comes from load-clean-data.qmd (doc_id, year, word),
+# already lowercased, stopword-filtered, and digit-filtered via
+# unnest_tokens() + anti_join(stop_words) + anti_join(custom_stops).
+# Reusing it (instead of re-cleaning raw text) guarantees wv and
+# dtm_full share an identical vocabulary -> no "ceramics" vs "ceramic"
+# or missing-word surprises when you run CMDist() later.
+
+doc_tokens <- all_tokens %>%
+  group_by(doc_id) %>%
+  summarise(tokens = list(word), .groups = "drop")
+
+# ---------------------------------------------------------
+# 2. Build itoken + vocabulary from these token lists
+# ---------------------------------------------------------
+# NOTE: because stopwords were already removed, skip-gram windows
+# will jump over the gaps left behind (effectively a slightly wider
+# "semantic" window than the raw text had). This is a common and
+# acceptable tradeoff for an initial test, but be aware it's a
+# deviation from training on fully raw, unfiltered text.
+
+it <- itoken(
+  doc_tokens$tokens,
+  ids = doc_tokens$doc_id,
+  progressbar = TRUE
+)
+
+vocab <- create_vocabulary(it)
+
+# Prune vocabulary: drop very rare words (noisy vectors) and
+# optionally very common ones (stopwords already help, but you
+# can also trim top terms if needed)
+vocab <- prune_vocabulary(
+  vocab,
+  term_count_min = 5,     # adjust to 10 if vocab is still very large
+  doc_proportion_max = 0.5
+)
+
+cat("Vocabulary size after pruning:", nrow(vocab), "\n")
+
+# Quick overlap check against dtm_full -- confirms the two share a
+# common vocabulary before you invest time in training
+overlap <- intersect(vocab$term, colnames(dtm_full))
+cat("Vocab terms also in dtm_full:", length(overlap),
+    "of", nrow(vocab), "\n")
+
+# ---------------------------------------------------------
+# 3. Create term-co-occurrence matrix (TCM)
+# ---------------------------------------------------------
+vectorizer <- vocab_vectorizer(vocab)
+
+tcm <- create_tcm(
+  it,
+  vectorizer,
+  skip_grams_window = 5   # context window size
+)
+
+# ---------------------------------------------------------
+# 4. Train GloVe model
+# ---------------------------------------------------------
+set.seed(42)
+
+glove <- GlobalVectors$new(
+  rank = 100,     # embedding dimensionality (100d is reasonable for ~10M tokens)
+  x_max = 10
+)
+
+wv_main <- glove$fit_transform(
+  tcm,
+  n_iter = 20,
+  convergence_tol = 0.01,
+  n_threads = parallel::detectCores() - 1
+)
+
+wv_context <- glove$components
+
+# GloVe recommends summing main + context vectors for final representation
+wv <- wv_main + t(wv_context)
+
+# ---------------------------------------------------------
+# 5. Inspect: sanity-check nearest neighbors
+# ---------------------------------------------------------
+cos_sim <- function(word, wv, n = 10) {
+  if (!(word %in% rownames(wv))) {
+    stop("Word not in vocabulary: ", word)
+  }
+  v <- wv[word, , drop = FALSE]
+  sims <- sim2(x = wv, y = v, method = "cosine", norm = "l2")
+  sort(sims[, 1], decreasing = TRUE)[1:n]
+}
+
+# Example checks (swap in terms relevant to your corpus)
+cos_sim("ceramic", wv)
+cos_sim("identity", wv)
+cos_sim("colonial", wv)
+
+# ---------------------------------------------------------
+# 6. Save for use with CMDist()
+# ---------------------------------------------------------
+saveRDS(wv, "saa_wv_100d.rds")
+
+# Later, in your CMDist script:
+# wv <- readRDS("saa_wv_100d.rds")
+# library(text2map)
+# cmd_out <- CMDist(dtm = dtm_full, cw = c("concept_word"), wv = wv, missing = "remove")
+
+```
+
+

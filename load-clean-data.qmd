@@ -4,8 +4,10 @@ author: Avi Jonas
 format: gfm
 ---
 
+THE PREVIOUS README.qmd file (for step 3)
 ```{r}
 library(tidyverse)
+library(tidytext)
 library(fs)
 
 # 1. One row per YEAR for now (not per abstract yet)
@@ -26,8 +28,21 @@ yearly <- yearly %>%
            str_remove("\\s*-\\s*\\d{4}$"))
 ```
 
+define regex
+```{r}
+split_pattern <- "\\n(?=[\\p{L}][\\p{L}'’.\\-]{1,30}+(?:\\s[\\p{L}][\\p{L}'’.\\-]{0,20}+){0,3}+,\\s(?:[\\p{L}][\\p{L}'’.\\-]{0,15}+\\.?+\\s*+){1,3}+[\\(\\[])"
 
-# function for parsing abstract
+header_pattern <- "ABSTRACTS OF THE SAA \\d+(ST|ND|RD|TH) ANNUAL MEETING\\s*\\d*"
+
+```
+
+custom stops
+```{r}
+custom_stops <- tibble(word = c("paper", "presentation", "discusses", "abstract", "data", "de", "la", "el", "los", "las", "del", "en", "censored"))
+```
+
+
+## function for parsing abstract
 ```{r}
 split_and_parse <- function(text, yr) {
   records <- str_split(paste0("\n", text), split_pattern)[[1]] %>%
